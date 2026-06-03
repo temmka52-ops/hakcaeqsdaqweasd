@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Predictor v5.0</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --primary-card: rgba(10, 25, 10, 0.4);
+            --secondary-card: #0a1a0a;
+            --border-color: rgba(0, 255, 110, 0.2);
+            --accent-color: #00ff6e;
+            --glow-color: rgba(0, 255, 110, 0.6);
+            --text-primary: #00ff6e;
+            --text-secondary: #008a3e;
+            --font-family: 'Roboto Mono', monospace;
+            --border-radius: 8px;
+            --risk-low: #00ff6e;
+            --risk-medium: #ffd800;
+            --risk-high: #ff4d4d;
+            --risk-extreme: #ff00ff;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            box-sizing: border-box;
+            overflow: hidden;
+            background-image: radial-gradient(var(--text-secondary) 1px, transparent 0);
+            background-size: 30px 30px;
+        }
+
+        #scanline {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 100%);
+            background-size: 100% 4px; animation: scan 10s linear infinite;
+        }
+
+        .app-container {
+            width: 100%; max-width: 580px; background: var(--primary-card);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            border-radius: var(--border-radius); padding: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 0 30px var(--glow-color), inset 0 0 10px rgba(0, 255, 110, 0.2);
+            display: flex; flex-direction: column; gap: 1.5rem;
+        }
+
+        .header { text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+        .header .title { font-size: 1.8rem; font-weight: 700; text-shadow: 0 0 10px var(--glow-color); }
+        .header .subtitle { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem; letter-spacing: 2px; }
+
+        .game-modes { display: grid; grid-template-columns: 1fr 1fr 1fr; background-color: var(--secondary-card); border-radius: var(--border-radius); padding: 0.25rem; border: 1px solid var(--border-color); }
+        .mode-btn { padding: 0.7rem; border: 1px solid transparent; background: transparent; color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; cursor: pointer; border-radius: 6px; transition: all 0.2s ease-in-out; }
+        .mode-btn.active { background-color: var(--accent-color); color: #000; font-weight: 700; text-shadow: none; box-shadow: 0 0 15px var(--glow-color); }
+
+        .game-panel { display: none; flex-direction: column; align-items: center; gap: 1.25rem; animation: fadeIn 0.5s ease; }
+
+        .spinner-container { position: relative; width: 200px; height: 200px; margin-bottom: 0.5rem; }
+        #hud-spinner { width: 100%; height: 100%; }
+        #hud-spinner circle { fill: none; stroke-width: 3; stroke-linecap: round; transform-origin: 50% 50%; }
+        #hud-spinner .ring1 { stroke: var(--border-color); }
+        #hud-spinner .ring2 { stroke: var(--text-secondary); animation: rotate 10s linear infinite; }
+        #hud-spinner .ring3 { stroke: var(--accent-color); stroke-dasharray: 200 424; animation: rotate-back 8s linear infinite; }
+
+        .prediction-result { text-align: center; width: 100%; }
+        .multiplier-display { font-size: 4rem; font-weight: 700; line-height: 1; color: var(--accent-color); text-shadow: 0 0 15px var(--glow-color); }
+        .prediction-stats { display: flex; justify-content: center; gap: 1rem; margin-top: 0.75rem; color: var(--text-secondary); font-size: 0.8rem; flex-wrap: wrap; }
+        .stat-item span { font-weight: 700; color: var(--text-primary); }
+        
+        .stake-input-container { width: 100%; text-align: center; }
+        .stake-input-container label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); letter-spacing: 1px; }
+        #stake-input {
+            width: 80%; max-width: 250px; background: var(--secondary-card); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.75rem; border-radius: var(--border-radius);
+            font-family: var(--font-family); font-size: 1.2rem; text-align: center;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.5); transition: all 0.3s ease;
+        }
+        #stake-input:focus { border-color: var(--accent-color); box-shadow: inset 0 0 10px rgba(0, 255, 110, 0.2), 0 0 10px var(--glow-color); outline: none; }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        .predict-btn { width: 100%; padding: 1rem; font-size: 1.1rem; font-weight: 700; color: var(--accent-color); background-color: transparent; border: 2px solid var(--accent-color); border-radius: var(--border-radius); cursor: pointer; transition: all 0.3s ease; box-shadow: 0 0 10px var(--glow-color), inset 0 0 5px var(--glow-color); }
+        .predict-btn:hover:not(:disabled) { background-color: var(--accent-color); color: #000; box-shadow: 0 0 25px var(--glow-color); }
+        .predict-btn:disabled { cursor: not-allowed; border-color: var(--text-secondary); color: var(--text-secondary); box-shadow: none; opacity: 0.5; }
+        
+        .history-section h3 { font-size: 1rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 1px; }
+        .history-bar { width: 100%; display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 10px; min-height: 40px; align-items: center;}
+        .history-placeholder { font-size: 0.8rem; color: var(--text-secondary); width: 100%; text-align: center; letter-spacing: 1px; }
+        .history-bar::-webkit-scrollbar { height: 4px; }
+        .history-bar::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        .history-chip { flex-shrink: 0; background-color: var(--secondary-card); padding: 0.5rem 1rem; border-radius: var(--border-radius); border: 1px solid var(--border-color); animation: slideIn 0.4s ease; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+        .history-chip-value { font-weight: 700; color: var(--text-primary); }
+        .history-chip-mode { font-size: 0.7rem; font-weight: 500; padding: 0.1rem 0.4rem; border-radius: 5px; background-color: var(--accent-color); color: #000; }
+        .history-chip .risk-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 5px currentColor; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-overlay.visible { opacity: 1; visibility: visible; }
+        .modal-content { background: #000; padding: 2.5rem; border-radius: var(--border-radius); text-align: center; border: 1px solid var(--border-color); box-shadow: 0 0 40px var(--glow-color); transform: scale(0.9); transition: transform 0.3s; width: 380px; }
+        .modal-overlay.visible .modal-content { transform: scale(1); }
+        .modal-content h3 { margin: 0 0 0.5rem 0; font-size: 1.5rem; letter-spacing: 2px; }
+        #modal-status { margin: 0 0 1.5rem 0; color: var(--text-secondary); min-height: 20px;}
+        .progress-bar { width: 100%; height: 4px; background-color: var(--border-color); margin-top: 1rem; }
+        .progress-bar-inner { width: 0%; height: 100%; background-color: var(--accent-color); box-shadow: 0 0 10px var(--glow-color); transition: width 0.5s ease-out; }
+
+        @keyframes scan { from { background-position: 0 0; } to { background-position: 0 -100px; } }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes rotate-back { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @media (max-width: 600px) { .app-container { min-height: 100vh; border-radius: 0; padding: 1.5rem 1rem; } .multiplier-display { font-size: 3.5rem; } }
+    </style>
+</head>
+<body>
+    <div id="scanline"></div>
+
+    <div class="app-container" id="app-container">
+        <header class="header">
+            <div class="title">Quantum Predictor v5.0</div>
+            <div class="subtitle">Strategic Analysis Core</div>
+        </header>
+
+        <div class="game-modes">
+            <button class="mode-btn" data-mode="easy">Easy</button>
+            <button class="mode-btn" data-mode="medium">Medium</button>
+            <button class="mode-btn" data-mode="hard">Hard</button>
+        </div>
+
+        <div class="game-panel" id="game-panel">
+            <div class="spinner-container"><svg id="hud-spinner" viewBox="0 0 200 200"><circle class="ring1" cx="100" cy="100" r="95"/><circle class="ring2" cx="100" cy="100" r="80"/><circle class="ring3" cx="100" cy="100" r="65"/></svg></div>
+            <div class="prediction-result" id="prediction-result" style="visibility: hidden;">
+                <div class="multiplier-display" id="multiplier-display">0.00x</div>
+                <div class="prediction-stats">
+                    <div class="stat-item">Confidence: <span id="confidence-score">0%</span></div>
+                    <div class="stat-item">Risk Level: <span id="risk-level">N/A</span></div>
+                    <div class="stat-item">Stake Factor: <span id="stake-factor">N/A</span></div>
+                </div>
+            </div>
+            <div class="stake-input-container">
+                <label for="stake-input">STAKE AMOUNT ($)</label>
+                <input type="number" id="stake-input" placeholder="0.00" min="0">
+            </div>
+            <button class="predict-btn" id="predict-btn">EXECUTE ANALYSIS</button>
+        </div>
+        
+        <div class="history-section">
+            <h3>LOGS // PREVIOUS PREDICTIONS</h3>
+            <div class="history-bar" id="history-bar"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title">EXECUTING...</h3>
+            <p id="modal-status">AWAITING INPUT...</p>
+            <div class="progress-bar"><div id="progress-bar-inner" class="progress-bar-inner"></div></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Quantum Predictor v5.0
+         * A sophisticated simulator for predicting game outcomes.
+         * This script uses a simulated AI that analyzes historical patterns and user input (stake amount)
+         * to generate predictions. It is for entertainment purposes only and does not connect to any live service.
+        */
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- CONFIGURATION & STATE ---
+            const CONFIG = {
+                MULTIPLIERS: {
+                    easy: [1.02,1.08,1.14,1.21,1.29,1.37,1.49,1.56,1.67,1.84,1.94,2.09,2.29,2.69,2.95,3.24,3.58,3.98,4.45,5.01,5.68,6.49,7.49,8.74,10.33,12.39,15.15,18.94,24.35],
+                    medium: [1.08,1.22,1.38,1.57,1.79,2.06,2.38,2.78,3.27,3.89,4.67,5.67,6.98,8.73,11.11,14.44,19.25,26.48,37.83],
+                    hard: [1.19,1.47,1.84,2.32,2.97,3.84,5.05,6.73,9.13,12.65,17.92]
+                },
+                SCRAMBLE_CHARS: '█▓▒░<>/$#@!*?',
+                HISTORY_LENGTH: 15,
+            };
+
+            const state = {
+                currentMode: 'easy',
+                predictionHistory: [],
+                isPredicting: false,
+            };
+
+            const DOM = {
+                modeButtons: document.querySelectorAll('.mode-btn'), gamePanel: document.getElementById('game-panel'), predictBtn: document.getElementById('predict-btn'), stakeInput: document.getElementById('stake-input'), multiplierDisplay: document.getElementById('multiplier-display'), confidenceDisplay: document.getElementById('confidence-score'), riskDisplay: document.getElementById('risk-level'), stakeFactorDisplay: document.getElementById('stake-factor'), historyBar: document.getElementById('history-bar'), modal: document.getElementById('modal-overlay'), predictionResult: document.getElementById('prediction-result'), modalStatus: document.getElementById('modal-status'), progressBar: document.getElementById('progress-bar-inner'),
+            };
+
+            // --- INITIALIZATION ---
+            const init = () => {
+                setupEventListeners();
+                selectMode('easy');
+                DOM.predictBtn.disabled = true;
+                renderHistory(); // Render initial empty state
+            };
+
+            const setupEventListeners = () => {
+                DOM.modeButtons.forEach(button => button.addEventListener('click', () => selectMode(button.dataset.mode)));
+                DOM.predictBtn.addEventListener('click', handlePredict);
+                DOM.stakeInput.addEventListener('input', () => {
+                    const amount = parseFloat(DOM.stakeInput.value);
+                    DOM.predictBtn.disabled = state.isPredicting || !amount || amount <= 0;
+                });
+            };
+
+            // --- CORE LOGIC (AI SIMULATION) ---
+            const aiThinkingProcess = (betAmount) => {
+                let stakeFactor = 'LOW';
+                if (betAmount >= 10 && betAmount < 100) stakeFactor = 'MEDIUM';
+                else if (betAmount >= 100) stakeFactor = 'HIGH';
+
+                const historySlice = state.predictionHistory.slice(0, 3);
+                if (historySlice.length < 3) return { bias: 'none', confidenceModifier: 0, stakeFactor };
+
+                const high_threshold = 5;
+                const low_threshold = 2;
+                const isHotStreak = historySlice.every(p => p.value > high_threshold);
+                const isColdStreak = historySlice.every(p => p.value < low_threshold);
+                const isChoppy = !isHotStreak && !isColdStreak;
+
+                // The AI becomes more aggressive and risk-aware with high stakes
+                if (stakeFactor === 'HIGH') {
+                    if (isHotStreak) return { bias: 'favor_low', confidenceModifier: 15, stakeFactor, overrideRisk: {l: "EXTREME", c: 'var(--risk-extreme)'} }; // Expects a sharp correction
+                    if (isColdStreak) return { bias: 'favor_high', confidenceModifier: -10, stakeFactor, overrideRisk: {l: "EXTREME", c: 'var(--risk-extreme)'} }; // Expects a desperate breakout
+                }
+                
+                // Standard analysis for low/medium stakes
+                if (isHotStreak) return { bias: 'favor_low', confidenceModifier: 10, stakeFactor };
+                if (isColdStreak) return { bias: 'favor_high', confidenceModifier: -5, stakeFactor };
+                if (isChoppy) return { bias: 'none', confidenceModifier: -10, stakeFactor}; // Less confident in unpredictable patterns
+                
+                return { bias: 'none', confidenceModifier: 0, stakeFactor };
+            };
+
+            const generatePrediction = () => {
+                const betAmount = parseFloat(DOM.stakeInput.value) || 0;
+                const { bias, confidenceModifier, stakeFactor, overrideRisk } = aiThinkingProcess(betAmount);
+                const modeMultipliers = CONFIG.MULTIPLIERS[state.currentMode];
+                
+                let randomIndex;
+                const randomSample = Math.random();
+
+                if (bias === 'favor_low') { // AI biases towards the first 40% of outcomes
+                    randomIndex = Math.floor(randomSample * (modeMultipliers.length * 0.4));
+                } else if (bias === 'favor_high') { // AI biases towards the top 50% of outcomes
+                    const start = Math.floor(modeMultipliers.length * 0.5);
+                    randomIndex = start + Math.floor(randomSample * (modeMultipliers.length - start));
+                } else { // Default weighted random selection
+                    randomIndex = Math.floor(Math.pow(randomSample, 2.5) * modeMultipliers.length);
+                }
+                
+                const predictedValue = modeMultipliers[randomIndex];
+                let confidence = (Math.random() * (98.5 - 85.0) + 85.0) + confidenceModifier;
+                confidence = Math.max(70, Math.min(99.5, confidence));
+                
+                const riskLevels = { low: { l: "LOW", c: 'var(--risk-low)' }, medium: { l: "MEDIUM", c: 'var(--risk-medium)' }, high: { l: "HIGH", c: 'var(--risk-high)' } };
+                const risk = overrideRisk || ((predictedValue < 2.0) ? riskLevels.low : (predictedValue < 10.0) ? riskLevels.medium : riskLevels.high);
+                
+                const resultData = { value: predictedValue, confidence: confidence.toFixed(1), risk, mode: state.currentMode, stakeFactor };
+                
+                displayResult(resultData);
+                addToHistory(resultData);
+            };
+
+            // --- UI UPDATE FUNCTIONS ---
+            const selectMode = (mode) => {
+                state.currentMode = mode;
+                DOM.modeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+                DOM.gamePanel.style.display = 'flex';
+                DOM.predictionResult.style.visibility = 'hidden';
+            };
+            
+            const scrambleText = (element, final_text, duration = 800) => {
+                let step = 0;
+                const total_steps = 20;
+                const interval_time = duration / total_steps;
+                
+                const intervalId = setInterval(() => {
+                    if (step >= total_steps) {
+                        clearInterval(intervalId);
+                        element.textContent = final_text;
+                        return;
+                    }
+
+                    let revealed_chars = Math.floor((step / total_steps) * final_text.length);
+                    let scrambled = final_text.substring(0, revealed_chars);
+                    for (let i = revealed_chars; i < final_text.length; i++) {
+                        scrambled += CONFIG.SCRAMBLE_CHARS[Math.floor(Math.random() * CONFIG.SCRAMBLE_CHARS.length)];
+                    }
+                    element.textContent = scrambled;
+                    step++;
+                }, interval_time);
+            };
+
+            const displayResult = (data) => {
+                DOM.predictionResult.style.visibility = 'visible';
+                scrambleText(DOM.multiplierDisplay, `${data.value.toFixed(2)}x`);
+                scrambleText(DOM.confidenceDisplay, `${data.confidence}%`);
+                scrambleText(DOM.riskDisplay, data.risk.l);
+                scrambleText(DOM.stakeFactorDisplay, data.stakeFactor);
+                DOM.riskDisplay.style.color = data.risk.c;
+            };
+
+            const addToHistory = (data) => {
+                state.predictionHistory.unshift(data);
+                if (state.predictionHistory.length > CONFIG.HISTORY_LENGTH) state.predictionHistory.pop();
+                renderHistory();
+            };
+
+            const renderHistory = () => {
+                DOM.historyBar.innerHTML = '';
+                if (state.predictionHistory.length === 0) {
+                    DOM.historyBar.innerHTML = `<div class="history-placeholder">&lt; NO DATA LOGS &gt;</div>`;
+                    return;
+                }
+                state.predictionHistory.forEach(data => {
+                    const chip = document.createElement('div');
+                    chip.className = 'history-chip';
+                    chip.innerHTML = `<span class="history-chip-value">${data.value.toFixed(2)}x</span> <span class="risk-dot" style="color: ${data.risk.c}; background-color: ${data.risk.c};"></span> <span class="history-chip-mode">${data.mode.charAt(0).toUpperCase()}</span>`;
+                    DOM.historyBar.appendChild(chip);
+                });
+            };
+
+            // --- EVENT HANDLERS & MODAL ---
+            const handlePredict = () => {
+                state.isPredicting = true;
+                DOM.predictBtn.disabled = true;
+                DOM.predictionResult.style.visibility = 'hidden';
+                const analysisSteps = ["INITIALIZING MODEL", "ANALYZING STAKE...", "QUERYING DATA STREAMS", "DETECTING PATTERNS...", "COMPILING PREDICTION"];
+                let progress = 0, step = 0;
+                scrambleText(DOM.modalStatus, analysisSteps[step]);
+                DOM.progressBar.style.width = '0%';
+                DOM.modal.classList.add('visible');
+                const predictionTime = Math.random() * (4500 - 3000) + 3000;
+                const interval = setInterval(() => {
+                    progress += 100 / (predictionTime / 100);
+                    DOM.progressBar.style.width = `${progress}%`;
+                    const currentStep = Math.min(analysisSteps.length - 1, Math.floor(progress / (100 / analysisSteps.length)));
+                    if (step !== currentStep) { step = currentStep; scrambleText(DOM.modalStatus, analysisSteps[step]); }
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        setTimeout(() => {
+                            DOM.modal.classList.remove('visible');
+                            generatePrediction();
+                            state.isPredicting = false;
+                            DOM.predictBtn.disabled = parseFloat(DOM.stakeInput.value) <= 0;
+                        }, 500);
+                    }
+                }, 100);
+            };
+
+            // --- START APPLICATION ---
+            init();
+        });
+    </script>
+</body>
+</html>
